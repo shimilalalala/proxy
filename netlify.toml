@@ -1,9 +1,6 @@
 [build]
   functions = "netlify/functions"
 
-[functions]
-  included_files = ["cors.py", "request_helper.py"]
-
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/api/:splat"
