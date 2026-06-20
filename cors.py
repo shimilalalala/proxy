@@ -29,7 +29,7 @@ async def cors(request: Request, origins, method="GET") -> Response:
         cookies=request.cookies,
         method=request.query_params.get("method", method),
         json_data=json.loads(request.query_params.get("json", "{}")),
-        additional_params=json.loads(request.get('params', '{}'))
+        additional_params=json.loads(request.query_params.get('params', '{}'))
     )
     headers['Access-Control-Allow-Origin'] = current_domain
     # if "text/html" not in headers.get('Content-Type'):
@@ -75,8 +75,37 @@ async def cors(request: Request, origins, method="GET") -> Response:
     return resp
 
 
+def _cors_headers(origin: str, origins: str) -> dict:
+    allowed = origin if origin and (origins == "*" or origin in origins.replace(", ", ",").split(",")) else origins
+    return {
+        "Access-Control-Allow-Origin": allowed if allowed else "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Allow-Credentials": "true",
+    }
+
+
 def add_cors(app, origins, setup_with_no_url_param=False):
     cors_path = os.getenv('cors_url', '/cors')
+
+    from fastapi.responses import JSONResponse
+
+    @app.middleware("http")
+    async def attach_cors_headers(request: Request, call_next):
+        origin = request.headers.get("origin", "")
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            headers = _cors_headers(origin, origins)
+            return JSONResponse({"detail": str(exc)}, status_code=500, headers=headers)
+        for k, v in _cors_headers(origin, origins).items():
+            response.headers[k] = v
+        return response
+
+    @app.options(cors_path)
+    async def cors_preflight(request: Request) -> Response:
+        origin = request.headers.get("origin", "")
+        return Response(status_code=204, headers=_cors_headers(origin, origins))
 
     @app.get(cors_path)
     async def cors_caller(request: Request) -> Response:
