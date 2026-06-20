@@ -36,7 +36,6 @@ async def cors(request: Request, origins, method="GET") -> Response:
     except Exception:
         traceback.print_exc()
         raise
-    headers = dict(headers)
     headers['Access-Control-Allow-Origin'] = current_domain
     # if "text/html" not in headers.get('Content-Type'):
     #     headers['Content-Disposition'] = 'attachment; filename="master.m3u8"'
