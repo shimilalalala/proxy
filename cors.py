@@ -68,7 +68,10 @@ async def cors(request: Request, origins, method="GET") -> Response:
     for key in del_keys:
         headers.pop(key, None)
 
-    if (file_type == "m3u8" or ".m3u8" in url) and code != 404:
+    # Some providers (e.g. miku) serve HLS playlists with a .txt extension, so
+    # the URL check alone misses them — also sniff the body for the #EXTM3U tag.
+    looks_like_m3u8 = isinstance(content, (bytes, bytearray)) and content[:64].lstrip()[:7] == b"#EXTM3U"
+    if (file_type == "m3u8" or ".m3u8" in url or looks_like_m3u8) and code != 404:
         content = content.decode("utf-8")
         # Ad segments injected by the source point at these CDNs / paths and are
         # IP-signed, so they 403 through the proxy and break HLS playback. Drop
