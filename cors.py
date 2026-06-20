@@ -17,7 +17,14 @@ async def cors(request: Request, origins, method="GET") -> Response:
         return Response()
     file_type = request.query_params.get('type')
     requested = Requester(str(request.url))
-    main_url = requested.host + requested.path + "?url="
+    # Behind nginx/Cloudflare the app sees plain http, so rewritten playlist/
+    # segment URLs would point to http:// and trigger a CORS-less redirect.
+    # Honor X-Forwarded-Proto (falling back to the request scheme) so rewrites
+    # use the real external scheme (https).
+    fwd_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    ext_scheme = fwd_proto or requested.schema
+    ext_host = ext_scheme + "://" + requested.domain
+    main_url = ext_host + requested.path + "?url="
     url = requested.query_params.get("url")
     url += "?"+requested.query_string(requested.remaining_params)
     requested = Requester(url)
