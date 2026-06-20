@@ -64,23 +64,34 @@ async def cors(request: Request, origins, method="GET") -> Response:
 
     if (file_type == "m3u8" or ".m3u8" in url) and code != 404:
         content = content.decode("utf-8")
-        new_content = ""
+        # Ad segments injected by the source point at these CDNs / paths and are
+        # IP-signed, so they 403 through the proxy and break HLS playback. Drop
+        # each ad segment line along with its preceding #EXTINF (and any lone
+        # #EXT-X-DISCONTINUITY) so the playlist stays valid.
+        ad_markers = ("ad-site-i18n", "ad-site-sign", "ibyteimg.com", "/ad-site-")
+        out_lines = []
         for line in content.split("\n"):
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and any(m in line for m in ad_markers):
+                while out_lines and out_lines[-1].strip().startswith(("#EXTINF", "#EXT-X-DISCONTINUITY")):
+                    out_lines.pop()
+                continue
             if line.startswith("#"):
-                new_content += line
+                out_lines.append(line)
             elif line.startswith('/'):
-                new_content += main_url + requested.safe_sub(requested.host + line)
+                out_lines.append(main_url + requested.safe_sub(requested.host + line))
             elif line.startswith('http'):
-                new_content += main_url + requested.safe_sub(line)
+                out_lines.append(main_url + requested.safe_sub(line))
             elif line.strip(' '):
-                new_content += main_url + requested.safe_sub(
+                out_lines.append(main_url + requested.safe_sub(
                     requested.host +
                     '/'.join(str(requested.path).split('?')[0].split('/')[:-1]) +
                     '/' +
                     requested.safe_sub(line)
-                )
-            new_content += "\n"
-        content = new_content
+                ))
+            else:
+                out_lines.append(line)
+        content = "\n".join(out_lines)
     if "location" in headers:
         if headers["location"].startswith("/"):
             headers["location"] = requested.host + headers["location"]
