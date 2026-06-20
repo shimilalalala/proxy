@@ -60,8 +60,13 @@ class Requester:
     def headers(self, headers):
         header = self.base_headers.copy()
         header.update(headers if headers is not None else header)
-        header.pop("host", None)
-        header.pop("cookie", None)
+        for key in [
+            "host", "cookie", "cf-connecting-ip", "x-forwarded-for",
+            "x-real-ip", "cf-ray", "cf-visitor", "cf-ipcountry",
+            "cdn-loop", "x-forwarded-proto", "true-client-ip",
+            "x-forwarded-host", "forwarded",
+        ]:
+            header.pop(key, None)
         return header
 
     def safe(self, url):
