@@ -1,6 +1,7 @@
 import json
 import os
 import traceback
+from urllib.parse import quote
 from fastapi import Request, Response, Cookie
 from fastapi.responses import RedirectResponse
 from request_helper import Requester
@@ -28,6 +29,11 @@ async def cors(request: Request, origins, method="GET") -> Response:
     ext_scheme = fwd_proto or ("http" if is_local else "https")
     ext_host = ext_scheme + "://" + requested.domain
     main_url = ext_host + requested.path + "?url="
+    # Carry the headers param (e.g. the Referer the CDN requires for hotlink
+    # protection) onto rewritten child playlist/segment URLs, so the whole
+    # chain is fetched with the same headers instead of being blocked.
+    raw_headers_param = request.query_params.get("headers")
+    child_suffix = ("&headers=" + quote(raw_headers_param)) if raw_headers_param else ""
     url = requested.query_params.get("url")
     url += "?"+requested.query_string(requested.remaining_params)
     requested = Requester(url)
@@ -79,16 +85,16 @@ async def cors(request: Request, origins, method="GET") -> Response:
             if line.startswith("#"):
                 out_lines.append(line)
             elif line.startswith('/'):
-                out_lines.append(main_url + requested.safe_sub(requested.host + line))
+                out_lines.append(main_url + requested.safe_sub(requested.host + line) + child_suffix)
             elif line.startswith('http'):
-                out_lines.append(main_url + requested.safe_sub(line))
+                out_lines.append(main_url + requested.safe_sub(line) + child_suffix)
             elif line.strip(' '):
                 out_lines.append(main_url + requested.safe_sub(
                     requested.host +
                     '/'.join(str(requested.path).split('?')[0].split('/')[:-1]) +
                     '/' +
                     requested.safe_sub(line)
-                ))
+                ) + child_suffix)
             else:
                 out_lines.append(line)
         content = "\n".join(out_lines)
