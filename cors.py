@@ -1,5 +1,6 @@
 import json
 import os
+import traceback
 from fastapi import Request, Response, Cookie
 from fastapi.responses import RedirectResponse
 from request_helper import Requester
@@ -23,14 +24,19 @@ async def cors(request: Request, origins, method="GET") -> Response:
     hdrs = request.headers.mutablecopy()
     hdrs["Accept-Encoding"] = ""
     hdrs.update(json.loads(request.query_params.get("headers", "{}").replace("'", '"')))
-    content, headers, code, cookies = requested.get(
-        data=None,
-        headers=hdrs,
-        cookies=request.cookies,
-        method=request.query_params.get("method", method),
-        json_data=json.loads(request.query_params.get("json", "{}")),
-        additional_params=json.loads(request.query_params.get('params', '{}'))
-    )
+    try:
+        content, headers, code, cookies = requested.get(
+            data=None,
+            headers=hdrs,
+            cookies=request.cookies,
+            method=request.query_params.get("method", method),
+            json_data=json.loads(request.query_params.get("json", "{}")),
+            additional_params=json.loads(request.query_params.get('params', '{}'))
+        )
+    except Exception:
+        traceback.print_exc()
+        raise
+    headers = dict(headers)
     headers['Access-Control-Allow-Origin'] = current_domain
     # if "text/html" not in headers.get('Content-Type'):
     #     headers['Content-Disposition'] = 'attachment; filename="master.m3u8"'
